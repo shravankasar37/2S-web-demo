@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-gold-50: #fefdf6;
+  --color-gold-100: #fdfceb;
+  --color-gold-200: #faf6cc;
+  --color-gold-300: #f6ef9e;
+  --color-gold-400: #f1e263;
+  --color-gold-500: #fed65b;
+  --color-gold-600: #e5b323;
+  --color-gold-700: #bf8e17;
+  --color-gold-800: #996e11;
+  --color-gold-900: #7d590e;
+  --color-gold-950: #735c00;
+
+  --color-crimson-50: #fbf5f5;
+  --color-crimson-100: #f5e6e6;
+  --color-crimson-200: #eccbcb;
+  --color-crimson-300: #dba4a4;
+  --color-crimson-400: #c47373;
+  --color-crimson-500: #aa4646;
+  --color-crimson-600: #8f3333;
+  --color-crimson-700: #772828;
+  --color-crimson-800: #570000;
+  --color-crimson-900: #4d1c1c;
+  --color-crimson-950: #2b0c0c;
+
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: Outfit, Inter, system-ui, sans-serif;
+}
+
+body {
+  background-color: #fcf9f8;
+  color: #1c1b1b;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  background-image: radial-gradient(circle at 100% 100%, rgba(115, 92, 0, 0.03) 0%, transparent 40%),
+                    radial-gradient(circle at 0% 0%, rgba(87, 0, 0, 0.02) 0%, transparent 40%);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+}
+
+/* Custom premium styling utilities */
+.gold-gradient {
+  background: linear-gradient(135deg, #fed65b 0%, #d4a31d 50%, #735c00 100%);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(135deg, #fed65b 0%, #d4a31d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.crimson-gradient {
+  background: linear-gradient(135deg, #570000 0%, #3d0000 100%);
+}
+
+.premium-card {
+  background-color: white;
+  border: 1px solid #f3f4f6; /* border-gray-100 */
+  border-radius: 1.5rem; /* rounded-3xl */
+  box-shadow: 0 4px 20px -2px rgba(115, 92, 0, 0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.premium-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -5px rgba(87, 0, 0, 0.05), 0 0 15px rgba(115, 92, 0, 0.03);
+}
+
+/* Hide default scrollbars but keep functionality */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e5e7eb; /* gray-200 */
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db; /* gray-300 */
+}
+
+/* Print Overrides for Invoice and Labels */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  
+  header, section, aside, nav, footer, .no-print {
+    display: none !important;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
+
+  /* Reset outer layout structures for printing */
+  main, #root {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .grid-cols-1.lg\:grid-cols-6, .max-w-7xl, main.lg\:col-span-5 {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  @page {
+    margin: 0 !important;
+  }
+}
+
+.print-mode-active #invoice-receipt-sheet {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}

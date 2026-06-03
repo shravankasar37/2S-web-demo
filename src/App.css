@@ -1,0 +1,7 @@
+/* Custom page layout overrides */
+.print-mode-active #invoice-receipt-sheet {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}

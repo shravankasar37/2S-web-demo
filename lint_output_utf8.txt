@@ -1,0 +1,263 @@
+﻿
+> mangalmurti-jwellers@0.0.0 lint
+> eslint .
+
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\App.jsx
+  40:6  warning  React Hook useEffect has a missing dependency: 'initialize'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\components\shared\Layout.jsx
+   7:33  error  'ArrowDownLeft' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+  11:11  error  'user' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+  24:5   error  Error: Cannot access variable before it is declared
+
+`fetchRates` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  22 |
+  23 |   useEffect(() => {
+> 24 |     fetchRates();
+     |     ^^^^^^^^^^ `fetchRates` accessed before it is declared
+  25 |   }, []);
+  26 |
+  27 |   const fetchRates = async () => {
+
+  25 |   }, []);
+  26 |
+> 27 |   const fetchRates = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 28 |     const { data } = await db.getLatestRates();
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 29 |     if (data) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 30 |       setRates(data);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 31 |       setTemp24k(data.rate24k.toString());
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 32 |       setTemp22k(data.rate22k.toString());
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 33 |       setTemp18k(data.rate18k.toString());
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 34 |       setTempSilver(data.rate_silver.toString());
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 35 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 36 |   };
+     | ^^^^^ `fetchRates` is declared here
+  37 |
+  38 |   const handleSaveRates = async (e) => {
+  39 |     e.preventDefault();  react-hooks/immutability
+  50:13  error  'data' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\lib\databaseService.js
+  556:14  error  'err' is defined but never used  no-unused-vars
+  641:14  error  'err' is defined but never used  no-unused-vars
+  810:14  error  'err' is defined but never used  no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\BillingPage.jsx
+    5:23  error  'X' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+    6:30  error  'FileText' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+  124:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  122 |   // Sync Daily Rates on start
+  123 |   useEffect(() => {
+> 124 |     fetchRatesAndLedger();
+      |     ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  125 |     const handleRatesUpdate = (e) => {
+  126 |       setGoldRates(e.detail);
+  127 |     };                                                                                        react-hooks/set-state-in-effect
+  168:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  166 |       const otherPaid = tUpi + tCard + tNet;
+  167 |       const diff = Math.max(0, netPayable - otherPaid);
+> 168 |       setCashPaid(diff > 0 ? diff.toString() : '0');
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  169 |     } else if (paymentCategory === 'unpaid') {
+  170 |       setCashPaid('');
+  171 |       setUpiPaid('');  react-hooks/set-state-in-effect
+  187:9   error  The value assigned to 'base' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+  203:45  error  'idx' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  212:9   error  The value assigned to 'base' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+  221:46  error  'idx' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  455:11  error  'exchange' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+  616:9   error  The value assigned to 'msg' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-useless-assignment
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\GoldLoanPage.jsx
+    4:16  error  'Check' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+    4:51  error  'X' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+    4:54  error  'Sparkles' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-unused-vars
+    4:70  error  'Calendar' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-unused-vars
+   34:5   error  Error: Cannot access variable before it is declared
+
+`fetchLoansList` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  32 |
+  33 |   useEffect(() => {
+> 34 |     fetchLoansList();
+     |     ^^^^^^^^^^^^^^ `fetchLoansList` accessed before it is declared
+  35 |   }, []);
+  36 |
+  37 |   const fetchLoansList = async () => {
+
+  35 |   }, []);
+  36 |
+> 37 |   const fetchLoansList = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 38 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 39 |     const { data: rates } = await db.getLatestRates();
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 40 |     if (rates) setGoldRates(rates);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 41 |     const { data } = await db.getGoldLoans();
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 42 |     if (data) setLoans(data);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 43 |     setLoading(false);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 44 |   };
+     | ^^^^^ `fetchLoansList` is declared here
+  45 |
+  46 |   // Autocomplete auto-fill phone details
+  47 |   useEffect(() => {                react-hooks/immutability
+   67:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  65 |       if (goldPurity === '18KT') rate = goldRates.rate18k / 10;
+  66 |       const appraisal = wt * rate;
+> 67 |       setAppraisedValue(Math.round(appraisal).toString());
+     |       ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |       
+  69 |       // Default loan amount as 75% of appraisal value
+  70 |       setLoanAmount(Math.round(appraisal * 0.75).toString());  react-hooks/set-state-in-effect
+   79:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  77 |       const base = new Date(loanDate);
+  78 |       base.setFullYear(base.getFullYear() + 1); // 1 year term
+> 79 |       setDueDate(base.toISOString().split('T')[0]);
+     |       ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  80 |     }
+  81 |   }, [loanDate]);
+  82 |                                                                                                                 react-hooks/set-state-in-effect
+  258:29  error  'outstanding' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\LoginPage.jsx
+   4:10  error  'useAuthStore' is defined but never used   no-unused-vars
+  30:15  error  'data' is assigned a value but never used  no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\ReportsPage.jsx
+   6:30  error    'BarChart3' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+  14:10  error    'customers' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+  36:5   error    Error: Cannot access variable before it is declared
+
+`fetchData` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  34 |
+  35 |   useEffect(() => {
+> 36 |     fetchData();
+     |     ^^^^^^^^^ `fetchData` accessed before it is declared
+  37 |   }, [startDate, endDate]);
+  38 |
+  39 |   async function fetchData() {
+
+   37 |   }, [startDate, endDate]);
+   38 |
+>  39 |   async function fetchData() {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  40 |     setLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^
+>  41 |     try {
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 156 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 157 |   };
+      | ^^^^ `fetchData` is declared here
+  158 |
+  159 |   const handleExportPDF = () => {
+  160 |     const doc = new jsPDF();  react-hooks/immutability
+  37:6   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                react-hooks/exhaustive-deps
+  45:28  error    'error' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\SavingSchemePage.jsx
+    4:16  error  'Check' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+    4:45  error  'X' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+   34:5   error  Error: Cannot access variable before it is declared
+
+`fetchSchemesList` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  32 |
+  33 |   useEffect(() => {
+> 34 |     fetchSchemesList();
+     |     ^^^^^^^^^^^^^^^^ `fetchSchemesList` accessed before it is declared
+  35 |   }, []);
+  36 |
+  37 |   const fetchSchemesList = async () => {
+
+  35 |   }, []);
+  36 |
+> 37 |   const fetchSchemesList = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 38 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 39 |     const { data } = await db.getSavingSchemes();
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 40 |     if (data) setSchemes(data);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 41 |     setLoading(false);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 42 |   };
+     | ^^^^^ `fetchSchemesList` is declared here
+  43 |
+  44 |   // Autocomplete auto-fill phone details
+  45 |   useEffect(() => {  react-hooks/immutability
+   78:13  error  'data' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-unused-vars
+  169:11  error  'today' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     no-unused-vars
+
+C:\Users\shrav\.gemini\antigravity\scratch\mangalmurti jwellers\src\pages\SearchPage.jsx
+   5:11  error  'Phone' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+   5:24  error  'MapPin' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-unused-vars
+   6:15  error  'ShieldAlert' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+   6:28  error  'Sparkles' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    no-unused-vars
+   6:53  error  'CreditCard' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+  49:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  47 |
+  48 |   useEffect(() => {
+> 49 |     fetchCustomersList();
+     |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  50 |   }, []);
+  51 |
+  52 |   const handleSelectCustomer = async (cust) => {  react-hooks/set-state-in-effect
+  55:19  error  'error' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+
+Γ£û 45 problems (43 errors, 2 warnings)
+
