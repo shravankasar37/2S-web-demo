@@ -816,7 +816,7 @@ export const db = {
     }
   },
 
-  async saveGoldLoan(customerName, customerPhone, customerAddress, goldWeight, goldPurity, appraisedValue, loanAmount, interestRate, loanDate, dueDate) {
+  async saveGoldLoan(customerName, customerPhone, customerAddress, goldWeight, goldPurity, appraisedValue, loanAmount, interestRate, loanDate, dueDate, repaymentMethod = 'bullet') {
     try {
       // Get or Create Customer
       const { data: existingCust } = await this.searchCustomerByPhone(customerPhone);
@@ -850,7 +850,8 @@ export const db = {
           loan_date: loanDate,
           due_date: dueDate,
           status: 'active',
-          total_repaid: 0
+          total_repaid: 0,
+          repayment_method: repaymentMethod
         }])
         .select();
 

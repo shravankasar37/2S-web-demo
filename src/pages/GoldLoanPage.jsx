@@ -3,6 +3,246 @@ import Layout from '../components/shared/Layout';
 import { db } from '../lib/databaseService';
 import { Plus, MessageSquare, ShieldCheck, Percent, Coins, ChevronRight, Phone, User } from 'lucide-react';
 
+// ==========================================
+// LOAN REPAYMENT METHOD MATH HELPERS
+// ==========================================
+
+const getElapsedMonths = (startDateStr, endDate = new Date()) => {
+  const start = new Date(startDateStr);
+  const diffTime = endDate - start;
+  const diffDays = Math.max(0, diffTime / (1000 * 60 * 60 * 24));
+  return diffDays / 30; // 30-day standard month representation
+};
+
+const getLoanTenureMonths = (loan) => {
+  if (!loan) return 12;
+  const start = new Date(loan.loan_date);
+  const due = new Date(loan.due_date);
+  const diffMonths = (due.getFullYear() - start.getFullYear()) * 12 + due.getMonth() - start.getMonth();
+  return Math.max(1, diffMonths);
+};
+
+const calculateEMI = (principal, monthlyRate, tenureMonths) => {
+  if (monthlyRate === 0) return principal / tenureMonths;
+  const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths)) / (Math.pow(1 + monthlyRate, tenureMonths) - 1);
+  return Math.round(emi);
+};
+
+const calculateLoanBreakdown = (loan, targetDate = new Date()) => {
+  if (!loan) {
+    return {
+      accruedInterest: 0,
+      remainingPrincipal: 0,
+      pendingInterest: 0,
+      totalDue: 0,
+      totalInterestPaid: 0,
+      repaymentMethod: 'bullet',
+      tenureMonths: 12,
+      emiAmount: 0
+    };
+  }
+  const principal = parseFloat(loan.loan_amount) || 0;
+  const annualRate = parseFloat(loan.interest_rate) || 12.00;
+  const monthlyRate = (annualRate / 100) / 12;
+  const method = loan.repayment_method || 'bullet';
+  const start = new Date(loan.loan_date);
+  const due = new Date(loan.due_date);
+  
+  // Calculate tenure months
+  const diffMonths = (due.getFullYear() - start.getFullYear()) * 12 + due.getMonth() - start.getMonth();
+  const tenureMonths = Math.max(1, diffMonths);
+
+  const repayments = [...(loan.loan_repayments || [])].sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
+  const totalRepaid = repayments.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+
+  if (loan.status === 'closed') {
+    return {
+      accruedInterest: 0,
+      remainingPrincipal: 0,
+      pendingInterest: 0,
+      totalDue: 0,
+      totalInterestPaid: 0,
+      repaymentMethod: method,
+      tenureMonths,
+      emiAmount: calculateEMI(principal, monthlyRate, tenureMonths)
+    };
+  }
+
+  if (method === 'bullet') {
+    // 1. Bullet Repayment
+    const elapsedMonths = getElapsedMonths(loan.loan_date, targetDate);
+    const accruedInterest = Math.round(principal * monthlyRate * elapsedMonths);
+    const totalDue = Math.max(0, principal + accruedInterest - totalRepaid);
+    
+    return {
+      accruedInterest,
+      remainingPrincipal: principal,
+      pendingInterest: accruedInterest,
+      totalDue,
+      totalInterestPaid: 0,
+      repaymentMethod: method,
+      tenureMonths,
+      emiAmount: 0
+    };
+  } else if (method === 'emi') {
+    // 2. Monthly EMI Amortization Schedule
+    const emi = calculateEMI(principal, monthlyRate, tenureMonths);
+    const elapsedMonths = getElapsedMonths(loan.loan_date, targetDate);
+    
+    const schedule = [];
+    let currentPrincipal = principal;
+    
+    for (let i = 1; i <= tenureMonths; i++) {
+      const monthInterest = Math.round(currentPrincipal * monthlyRate);
+      let principalPaid = emi - monthInterest;
+      if (i === tenureMonths || principalPaid > currentPrincipal) {
+        principalPaid = currentPrincipal;
+      }
+      currentPrincipal = Math.max(0, currentPrincipal - principalPaid);
+      
+      schedule.push({
+        month: i,
+        interest: monthInterest,
+        principalPaid,
+        remainingPrincipal: currentPrincipal
+      });
+    }
+
+    const completedMonths = Math.min(tenureMonths, Math.floor(elapsedMonths));
+    let accruedInterest = 0;
+    for (let i = 0; i < completedMonths; i++) {
+      accruedInterest += schedule[i].interest;
+    }
+    if (completedMonths < tenureMonths) {
+      const currentPrincipalForMonth = completedMonths === 0 ? principal : schedule[completedMonths - 1].remainingPrincipal;
+      const fractionalMonth = elapsedMonths - completedMonths;
+      accruedInterest += Math.round(currentPrincipalForMonth * monthlyRate * fractionalMonth);
+    }
+    
+    const totalDue = Math.max(0, principal + accruedInterest - totalRepaid);
+    
+    return {
+      accruedInterest,
+      remainingPrincipal: Math.max(0, principal + accruedInterest - totalRepaid),
+      pendingInterest: Math.max(0, accruedInterest - totalRepaid),
+      totalDue,
+      emiAmount: emi,
+      amortizationSchedule: schedule,
+      repaymentMethod: method,
+      tenureMonths
+    };
+  } else {
+    // 3. Partial Payment Chronological Interest Reduction
+    let outstandingPrincipal = principal;
+    let pendingInterest = 0;
+    let totalInterestAccrued = 0;
+    let lastDate = start;
+
+    for (const repayment of repayments) {
+      const repDate = new Date(repayment.payment_date);
+      if (repDate > lastDate) {
+        const diffTime = repDate - lastDate;
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+        const elapsedMonths = diffDays / 30;
+        const interestAccrued = outstandingPrincipal * monthlyRate * elapsedMonths;
+        
+        pendingInterest += interestAccrued;
+        totalInterestAccrued += interestAccrued;
+      }
+      
+      const paymentAmount = parseFloat(repayment.amount);
+      const clearedInterest = Math.min(paymentAmount, pendingInterest);
+      pendingInterest -= clearedInterest;
+      
+      const principalReduction = paymentAmount - clearedInterest;
+      outstandingPrincipal = Math.max(0, outstandingPrincipal - principalReduction);
+      
+      lastDate = repDate;
+    }
+
+    const today = new Date(targetDate);
+    if (today > lastDate && outstandingPrincipal > 0) {
+      const diffTime = today - lastDate;
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      const elapsedMonths = diffDays / 30;
+      const interestAccrued = outstandingPrincipal * monthlyRate * elapsedMonths;
+      
+      pendingInterest += interestAccrued;
+      totalInterestAccrued += interestAccrued;
+    }
+
+    pendingInterest = Math.round(pendingInterest);
+    totalInterestAccrued = Math.round(totalInterestAccrued);
+    const totalDue = Math.max(0, outstandingPrincipal + pendingInterest);
+
+    return {
+      accruedInterest: totalInterestAccrued,
+      remainingPrincipal: Math.round(outstandingPrincipal),
+      pendingInterest: Math.round(pendingInterest),
+      totalDue: Math.round(totalDue),
+      repaymentMethod: method,
+      tenureMonths,
+      emiAmount: 0
+    };
+  }
+};
+
+const generateComparisonSummary = (principal, monthlyRate, tenureMonths) => {
+  const emi = calculateEMI(principal, monthlyRate, tenureMonths);
+  const emiOutflow = emi * tenureMonths;
+  const emiInterest = emiOutflow - principal;
+
+  const bulletInterest = principal * monthlyRate * tenureMonths;
+  const bulletOutflow = principal + bulletInterest;
+
+  const t1 = Math.round(tenureMonths / 3);
+  const t2 = Math.round(2 * tenureMonths / 3);
+  
+  let outstandingPrincipal = principal;
+  
+  // Simulated Month t1
+  const interest = outstandingPrincipal * monthlyRate * t1;
+  const pay1 = Math.round(principal * 0.3);
+  const clearInt1 = Math.min(pay1, interest);
+  const outstandingInterestLeft = interest - clearInt1;
+  outstandingPrincipal -= (pay1 - clearInt1);
+
+  // Simulated Month t2
+  const interest2 = outstandingPrincipal * monthlyRate * (t2 - t1);
+  const currentPendingInterest = outstandingInterestLeft + interest2;
+  const pay2 = Math.round(principal * 0.4);
+  const clearInt2 = Math.min(pay2, currentPendingInterest);
+  outstandingPrincipal -= (pay2 - clearInt2);
+
+  // Simulated End
+  const interest3 = outstandingPrincipal * monthlyRate * (tenureMonths - t2);
+  const totalInterestAccrued = interest + interest2 + interest3;
+  
+  const partialInterest = Math.round(totalInterestAccrued);
+  const partialOutflow = principal + partialInterest;
+
+  return [
+    {
+      type: 'Monthly EMI',
+      interest: emiInterest,
+      outflow: emiOutflow,
+      bestFor: 'Individuals with a steady monthly salary.'
+    },
+    {
+      type: 'Partial Payments',
+      interest: partialInterest,
+      outflow: partialOutflow,
+      bestFor: 'Traders and shop owners with fluctuating cash flows.'
+    },
+    {
+      type: 'Bullet Repayment',
+      interest: bulletInterest,
+      outflow: bulletOutflow,
+      bestFor: 'Short-term emergency funding with a guaranteed future payout.'
+    }
+  ];
+};
+
 export default function GoldLoanPage() {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +257,10 @@ export default function GoldLoanPage() {
   const [goldPurity, setGoldPurity] = useState('22KT');
   const [appraisedValue, setAppraisedValue] = useState('');
   const [loanAmount, setLoanAmount] = useState('');
-  const [interestRate, setInterestRate] = useState('12.00'); // Default 12%
+  const [monthlyInterestRate, setMonthlyInterestRate] = useState('1.00'); // 1% default
+  const interestRate = (parseFloat(monthlyInterestRate || 0) * 12).toFixed(2);
+  const [repaymentMethod, setRepaymentMethod] = useState('bullet');
+  const [tenureMonths, setTenureMonths] = useState('6'); // Default 6 months
   const [loanDate, setLoanDate] = useState(new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
 
@@ -77,18 +320,19 @@ export default function GoldLoanPage() {
     return () => { active = false; };
   }, [goldWeight, goldPurity, goldRates]);
 
-  // Set due date automatically (e.g. 1 year / 365 days after loan date)
+  // Set due date automatically based on loan date and tenure months
   useEffect(() => {
     let active = true;
     if (loanDate) {
       const base = new Date(loanDate);
-      base.setFullYear(base.getFullYear() + 1); // 1 year term
+      const months = parseInt(tenureMonths) || 12;
+      base.setMonth(base.getMonth() + months);
       setTimeout(() => {
         if (active) setDueDate(base.toISOString().split('T')[0]);
       }, 0);
     }
     return () => { active = false; };
-  }, [loanDate]);
+  }, [loanDate, tenureMonths]);
 
   const handleOpenDetail = (loan) => {
     setSelectedLoan(loan);
@@ -111,7 +355,8 @@ export default function GoldLoanPage() {
       parseFloat(loanAmount),
       parseFloat(interestRate),
       loanDate,
-      dueDate
+      dueDate,
+      repaymentMethod
     );
 
     if (!error) {
@@ -189,20 +434,7 @@ export default function GoldLoanPage() {
     }
   };
 
-  // Accrued interest utility (informational simple interest)
-  const calculateAccruedInterest = (loan) => {
-    if (loan.status === 'closed') return 0;
-    const lDate = new Date(loan.loan_date);
-    const today = new Date();
-    const diffTime = Math.abs(today - lDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    // Simple Interest: Principal * Rate% * Time (days/365)
-    const principal = parseFloat(loan.loan_amount);
-    const rate = parseFloat(loan.interest_rate) / 100;
-    const interest = principal * rate * (diffDays / 365);
-    return Math.round(interest);
-  };
+
 
   return (
     <Layout>
@@ -368,7 +600,7 @@ export default function GoldLoanPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
                     Pledged Gold Weight (g)
@@ -402,19 +634,37 @@ export default function GoldLoanPage() {
 
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                    Annual Interest Rate (%)
+                    Monthly Interest Rate (%)
                   </label>
                   <div className="relative">
                     <input
                       type="number"
                       step="0.01"
                       required
-                      value={interestRate}
-                      onChange={(e) => setInterestRate(e.target.value)}
+                      value={monthlyInterestRate}
+                      onChange={(e) => setMonthlyInterestRate(e.target.value)}
                       className="w-full bg-[#fcf9f8] border border-[#735c00]/20 rounded-xl pl-9 pr-3 py-2 text-xs font-mono text-center"
                     />
                     <Percent className="absolute left-3 top-2.5 h-4 w-4 text-[#735c00]/60" />
                   </div>
+                  <span className="text-[9px] text-[#735c00] font-sans block mt-0.5 font-bold">
+                    = {interestRate}% Annual (p.a.)
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                    Tenure (Months)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="120"
+                    required
+                    value={tenureMonths}
+                    onChange={(e) => setTenureMonths(e.target.value)}
+                    className="w-full bg-[#fcf9f8] border border-[#735c00]/20 rounded-xl px-4 py-2 text-xs font-mono text-center"
+                  />
                 </div>
               </div>
 
@@ -424,7 +674,7 @@ export default function GoldLoanPage() {
                     Automated Appraised Value (Today's rates)
                   </label>
                   <div className="w-full bg-[#735c00]/5 text-[#735c00] border border-[#735c00]/25 rounded-xl px-4 py-2 text-xs font-mono font-bold text-right">
-                    ₹{parseFloat(appraisedValue).toLocaleString('en-IN')}
+                    ₹{parseFloat(appraisedValue || 0).toLocaleString('en-IN')}
                   </div>
                 </div>
 
@@ -442,7 +692,22 @@ export default function GoldLoanPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                    Repayment Method Option
+                  </label>
+                  <select
+                    value={repaymentMethod}
+                    onChange={(e) => setRepaymentMethod(e.target.value)}
+                    className="w-full bg-[#fcf9f8] border border-[#735c00]/20 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  >
+                    <option value="bullet">Bullet Repayment Method</option>
+                    <option value="emi">Regular Monthly EMI (Reducing Balance)</option>
+                    <option value="partial">Partial Payment Method</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
                     Mortgage Start Date
@@ -458,7 +723,7 @@ export default function GoldLoanPage() {
 
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                    Repayment Due Date (Default 1 Year)
+                    Repayment Due Date
                   </label>
                   <input
                     type="date"
@@ -469,6 +734,47 @@ export default function GoldLoanPage() {
                   />
                 </div>
               </div>
+
+              {/* Live Preview Card */}
+              {parseFloat(loanAmount) > 0 && (
+                <div className="p-4 bg-[#735c00]/5 border border-[#735c00]/25 rounded-2xl space-y-2">
+                  <div className="text-[10px] uppercase font-bold text-[#735c00] tracking-wider border-b border-[#735c00]/20 pb-1">
+                    Loan Repayment Estimate Preview
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold font-mono">
+                    <div>
+                      <span className="text-gray-400 block uppercase text-[9px]">Repayment Method:</span>
+                      <span className="text-[#570000] uppercase font-serif text-[11px] font-bold">
+                        {repaymentMethod === 'bullet' ? 'Bullet Repayment' : repaymentMethod === 'emi' ? 'Regular Monthly EMI' : 'Partial Payments'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block uppercase text-[9px]">
+                        {repaymentMethod === 'emi' ? 'Expected Monthly EMI:' : 'Estimated Total Interest:'}
+                      </span>
+                      <span className="text-[#570000] text-xs font-bold">
+                        {repaymentMethod === 'emi' ? (
+                          `₹${calculateEMI(parseFloat(loanAmount) || 0, (parseFloat(monthlyInterestRate) || 0) / 100, parseInt(tenureMonths) || 12).toLocaleString('en-IN')}/mo`
+                        ) : (
+                          `₹${(Math.round((parseFloat(loanAmount) || 0) * ((parseFloat(monthlyInterestRate) || 0) / 100) * (parseInt(tenureMonths) || 12))).toLocaleString('en-IN')}`
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block uppercase text-[9px]">Total Repayment Outflow:</span>
+                      <span className="text-gray-800 text-xs font-bold">
+                        ₹{(
+                          repaymentMethod === 'emi' ? (
+                            calculateEMI(parseFloat(loanAmount) || 0, (parseFloat(monthlyInterestRate) || 0) / 100, parseInt(tenureMonths) || 12) * (parseInt(tenureMonths) || 12)
+                          ) : (
+                            (parseFloat(loanAmount) || 0) + (parseFloat(loanAmount) || 0) * ((parseFloat(monthlyInterestRate) || 0) / 100) * (parseInt(tenureMonths) || 12)
+                          )
+                        ).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -538,6 +844,91 @@ export default function GoldLoanPage() {
                   <span>Total Repaid: <strong className="text-green-700 font-mono">₹{selectedLoan.total_repaid.toLocaleString('en-IN')}</strong></span>
                 </div>
               </div>
+
+              {/* Expected EMI Amortization Schedule (Only for EMI Loans) */}
+              {selectedLoan.repayment_method === 'emi' && (() => {
+                const breakdown = calculateLoanBreakdown(selectedLoan);
+                return (
+                  <div className="bg-white border border-[#735c00]/10 rounded-3xl p-5 shadow-sm space-y-3">
+                    <h3 className="text-xs uppercase font-extrabold tracking-widest text-[#735c00] border-b border-gray-100 pb-2">
+                      Expected Monthly EMI Amortization Schedule
+                    </h3>
+                    <div className="overflow-x-auto max-h-52 overflow-y-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200 uppercase text-[8px] font-bold text-gray-500 tracking-wider">
+                            <th className="py-2 px-3">Month</th>
+                            <th className="py-2 px-3 text-right">Interest Portion</th>
+                            <th className="py-2 px-3 text-right">Principal Portion</th>
+                            <th className="py-2 px-3 text-right">Outstanding Principal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-sans font-bold">
+                          {breakdown.amortizationSchedule?.map((sch) => (
+                            <tr key={sch.month} className="hover:bg-gray-50/50">
+                              <td className="py-2 px-3 font-mono text-gray-500">Month {sch.month}</td>
+                              <td className="py-2 px-3 text-right font-mono text-[#570000]">₹{sch.interest.toLocaleString('en-IN')}</td>
+                              <td className="py-2 px-3 text-right font-mono text-green-700">₹{sch.principalPaid.toLocaleString('en-IN')}</td>
+                              <td className="py-2 px-3 text-right font-mono text-gray-700">₹{sch.remainingPrincipal.toLocaleString('en-IN')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Repayment Comparison Summary Card */}
+              <div className="bg-white border border-[#735c00]/10 rounded-3xl p-5 shadow-sm space-y-3">
+                <h3 className="text-xs uppercase font-extrabold tracking-widest text-[#735c00] border-b border-gray-100 pb-2">
+                  Repayment Option Comparison Summary
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 uppercase text-[8px] font-bold text-gray-500 tracking-wider">
+                        <th className="py-2.5 px-3">Repayment Type</th>
+                        <th className="py-2.5 px-3 text-right">Total Interest</th>
+                        <th className="py-2.5 px-3 text-right">Total Outflow</th>
+                        <th className="py-2.5 px-3">Best Used For</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 font-sans font-bold">
+                      {generateComparisonSummary(
+                        selectedLoan.loan_amount,
+                        (selectedLoan.interest_rate / 12) / 100,
+                        getLoanTenureMonths(selectedLoan)
+                      ).map((summary, idx) => {
+                        const loanMethod = selectedLoan.repayment_method || 'bullet';
+                        const isCurrent = loanMethod === (summary.type === 'Monthly EMI' ? 'emi' : summary.type === 'Partial Payments' ? 'partial' : 'bullet');
+                        return (
+                          <tr key={idx} className={`${isCurrent ? 'bg-[#735c00]/5 text-[#570000]' : 'hover:bg-gray-50/50'}`}>
+                            <td className="py-2.5 px-3 font-serif flex items-center gap-1.5">
+                              {summary.type}
+                              {isCurrent && (
+                                <span className="px-1.5 py-0.5 bg-[#570000] text-[#fed65b] rounded text-[8px] uppercase tracking-wider font-extrabold">
+                                  Active
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-[#570000]">
+                              ₹{summary.interest.toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono">
+                              ₹{summary.outflow.toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-2.5 px-3 text-gray-500 font-sans font-medium text-[10px]">
+                              {summary.bestFor}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
 
             {/* Side summary panel */}
@@ -574,26 +965,39 @@ export default function GoldLoanPage() {
                     <span className="text-gray-800 font-mono">{selectedLoan.interest_rate}% p.a.</span>
                   </div>
                   
-                  {selectedLoan.status === 'active' && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-900 space-y-1 mt-2 text-[11px]">
-                      <div className="flex justify-between font-black">
-                        <span>Pledge Accruals Tally</span>
-                        <Coins className="h-4 w-4 text-[#570000]" />
+                  {selectedLoan.status === 'active' && (() => {
+                    const breakdown = calculateLoanBreakdown(selectedLoan);
+                    return (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-900 space-y-1 mt-2 text-[11px]">
+                        <div className="flex justify-between font-black border-b border-red-200/50 pb-1 mb-1">
+                          <span>Pledge Accruals Tally</span>
+                          <Coins className="h-4 w-4 text-[#570000]" />
+                        </div>
+                        <div className="flex justify-between text-gray-500 font-sans text-[10px] uppercase">
+                          <span>Repayment Type:</span>
+                          <span className="font-serif font-bold text-[#570000]">{selectedLoan.repayment_method === 'emi' ? 'EMI Reducing' : selectedLoan.repayment_method === 'partial' ? 'Partial' : 'Bullet'}</span>
+                        </div>
+                        {selectedLoan.repayment_method === 'emi' && (
+                          <div className="flex justify-between font-black text-[#570000] mb-0.5">
+                            <span>Monthly EMI:</span>
+                            <span className="font-mono">₹{breakdown.emiAmount.toLocaleString('en-IN')}/mo</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Sanctioned Principal:</span>
+                          <span className="font-mono font-bold">₹{selectedLoan.loan_amount.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Accrued Interest:</span>
+                          <span className="font-mono text-[#570000]">₹{breakdown.accruedInterest.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-red-200 pt-1 font-black">
+                          <span>Total Due Balance:</span>
+                          <span className="font-mono">₹{breakdown.totalDue.toLocaleString('en-IN')}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span>Sanctioned Principal:</span>
-                        <span className="font-mono font-bold">₹{selectedLoan.loan_amount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Estimated Interest (Simple):</span>
-                        <span className="font-mono text-[#570000]">₹{calculateAccruedInterest(selectedLoan).toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between border-t border-red-200 pt-1 font-black">
-                        <span>Total Due Balance:</span>
-                        <span className="font-mono">₹{Math.max(0, (selectedLoan.loan_amount + calculateAccruedInterest(selectedLoan)) - selectedLoan.total_repaid).toLocaleString('en-IN')}</span>
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-gray-100 font-bold">

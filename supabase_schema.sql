@@ -3,6 +3,12 @@
 -- =========================================================================
 -- Copy and paste this script into your Supabase SQL Editor and click 'Run'.
 -- This resets any existing tables and prepares the clean schema for all modules.
+--
+-- IMPORTANT (EXISTING SYSTEMS MIGRATION):
+-- If you are updating an existing database and want to preserve your data,
+-- DO NOT RUN THIS ENTIRE SCRIPT. Instead, copy and run this line in your SQL Editor:
+-- ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS repayment_method TEXT DEFAULT 'bullet';
+-- =========================================================================
 
 -- 1. DROP EXISTING TABLES IN CASCADE SEQUENCE
 DROP TABLE IF EXISTS loan_repayments CASCADE;
@@ -149,6 +155,7 @@ CREATE TABLE gold_loans (
     due_date DATE NOT NULL,
     status TEXT DEFAULT 'active', -- 'active' | 'closed' | 'overdue'
     total_repaid NUMERIC(10,2) DEFAULT 0,
+    repayment_method TEXT DEFAULT 'bullet',
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
