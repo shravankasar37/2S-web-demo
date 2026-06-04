@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Calendar, Download, TrendingUp, Layers, Coins, UserPlus } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
@@ -181,7 +181,7 @@ export default function ReportsPage() {
       ['Making Charges Accrued', `Rs ${stats.makingCharges.toLocaleString('en-IN')}`, 'New Customers Added', stats.newCustomersCount]
     ];
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 32,
       head: [['Metric', 'Summary Value', 'Metal Metric', 'Total Weight']],
       body: statData,
@@ -200,7 +200,7 @@ export default function ReportsPage() {
       (inv.payment_status || '').toUpperCase()
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 10,
       head: [['Bill Number', 'Customer Name', 'Contact Phone', 'Total Payable', 'Amount Paid', 'Status']],
       body: billsRows,
@@ -209,6 +209,97 @@ export default function ReportsPage() {
     });
 
     doc.save(`SGJ_Audit_Report_${startDate}_${endDate}.pdf`);
+  };
+
+  const handleExportTodayPDF = async () => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const { data: invs } = await db.getInvoices();
+      
+      const todayInvs = invs ? invs.filter(inv => inv.bill_date === todayStr) : [];
+      
+      // Calculate today's stats
+      let todaySalesAmount = 0;
+      let todayReceivedAmount = 0;
+      let todayItemsCount = 0;
+      
+      todayInvs.forEach(inv => {
+        todaySalesAmount += parseFloat(inv.total_amount) || 0;
+        
+        if (inv.payments) {
+          inv.payments.forEach(p => {
+            const pDate = p.payment_date ? p.payment_date.split('T')[0] : '';
+            if (pDate === todayStr) {
+              todayReceivedAmount += parseFloat(p.amount) || 0;
+            }
+          });
+        }
+        
+        if (inv.bill_items) {
+          todayItemsCount += inv.bill_items.length;
+        }
+      });
+      
+      const doc = new jsPDF();
+      
+      // Header
+      doc.setFont('times', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(87, 0, 0);
+      doc.text('SHREE GANESH JEWELLERS', 14, 20);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(100);
+      doc.setFont('times', 'normal');
+      doc.text(`Daily Activity Report - Date: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`, 14, 26);
+      doc.line(14, 29, 196, 29);
+      
+      // Stats Summary
+      const summaryData = [
+        ['Total Bills Created Today', todayInvs.length.toString()],
+        ['Total Revenue Generated Today (Sales)', `Rs ${todaySalesAmount.toLocaleString('en-IN')}`],
+        ['Total Cash/Inflow Received Today', `Rs ${todayReceivedAmount.toLocaleString('en-IN')}`],
+        ['Total Stock Items Sold Today', todayItemsCount.toString()]
+      ];
+      
+      autoTable(doc, {
+        startY: 34,
+        head: [['Today\'s Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: { fillColor: [87, 0, 0], textColor: [254, 214, 91] },
+        styles: { font: 'times', fontStyle: 'bold', fontSize: 10 }
+      });
+      
+      // List of Bills Today
+      const todayBillsRows = todayInvs.map(inv => [
+        inv.bill_number,
+        inv.customers?.name || 'Walk-in Customer',
+        inv.customers?.phone || 'N/A',
+        `Rs ${inv.total_amount.toLocaleString('en-IN')}`,
+        `Rs ${inv.amount_paid.toLocaleString('en-IN')}`,
+        (inv.payment_status || '').toUpperCase()
+      ]);
+      
+      doc.setFont('times', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(87, 0, 0);
+      doc.text("Today's Transaction Invoices Ledger", 14, doc.lastAutoTable.finalY + 10);
+      
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 14,
+        head: [['Bill Number', 'Customer Name', 'Contact Phone', 'Total Payable', 'Amount Paid', 'Status']],
+        body: todayBillsRows.length > 0 ? todayBillsRows : [['-', 'No transactions logged today', '-', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: [115, 92, 0], textColor: [255, 255, 255] },
+        styles: { font: 'times', fontSize: 9 }
+      });
+      
+      doc.save(`SGJ_Today_Report_${todayStr}.pdf`);
+    } catch (error) {
+      console.error('Error generating today\'s report:', error);
+      alert('Failed to download today\'s report: ' + error.message);
+    }
   };
 
   const handleSetQuickRange = (range) => {
@@ -244,13 +335,22 @@ export default function ReportsPage() {
               Monitor inflows, metals weights, and download PDF audits
             </p>
           </div>
-          <button
-            onClick={handleExportPDF}
-            className="px-3.5 py-2 bg-[#570000] hover:bg-[#735c00] text-[#fed65b] font-bold text-[10px] uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <Download className="h-4 w-4" />
-            Export PDF Report
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportTodayPDF}
+              className="px-3.5 py-2 bg-[#fed65b] border border-[#735c00]/40 text-[#570000] hover:bg-[#fed65b]/80 font-bold text-[10px] uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              Download Today's Report
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="px-3.5 py-2 bg-[#570000] hover:bg-[#735c00] text-[#fed65b] font-bold text-[10px] uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              Export PDF Report
+            </button>
+          </div>
         </div>
 
         {/* Date Filters Card */}

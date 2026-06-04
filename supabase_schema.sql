@@ -6,8 +6,10 @@
 --
 -- IMPORTANT (EXISTING SYSTEMS MIGRATION):
 -- If you are updating an existing database and want to preserve your data,
--- DO NOT RUN THIS ENTIRE SCRIPT. Instead, copy and run this line in your SQL Editor:
+-- DO NOT RUN THIS ENTIRE SCRIPT. Instead, copy and run these lines in your SQL Editor:
 -- ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS repayment_method TEXT DEFAULT 'bullet';
+-- ALTER TABLE urd_transactions ADD COLUMN IF NOT EXISTS payment_mode TEXT;
+-- ALTER TABLE urd_transactions ADD COLUMN IF NOT EXISTS narration TEXT;
 -- =========================================================================
 
 -- 1. DROP EXISTING TABLES IN CASCADE SEQUENCE
@@ -111,6 +113,8 @@ CREATE TABLE urd_transactions (
     weight NUMERIC(8,3) NOT NULL,
     rate_per_gram NUMERIC(10,2) NOT NULL,
     total_value NUMERIC(10,2) NOT NULL,
+    payment_mode TEXT,
+    narration TEXT,
     urd_bill_number TEXT,
     transaction_date TIMESTAMPTZ DEFAULT now()
 );
