@@ -294,6 +294,44 @@ export default function ReportsPage() {
         headStyles: { fillColor: [115, 92, 0], textColor: [255, 255, 255] },
         styles: { font: 'times', fontSize: 9 }
       });
+
+      // Extract today's sold items
+      const todayItemsList = [];
+      todayInvs.forEach(inv => {
+        if (inv.bill_items) {
+          inv.bill_items.forEach(item => {
+            todayItemsList.push({
+              item_number: item.item_number || 'N/A',
+              ornament_name: item.ornament_name,
+              metal_type: item.metal_type,
+              weight: parseFloat(item.net_weight) || 0,
+              bill_number: inv.bill_number
+            });
+          });
+        }
+      });
+
+      const todayItemsRows = todayItemsList.map(item => [
+        item.item_number,
+        item.ornament_name,
+        item.metal_type.toUpperCase(),
+        `${item.weight.toFixed(3)}g`,
+        item.bill_number
+      ]);
+
+      doc.setFont('times', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(87, 0, 0);
+      doc.text("Today's Sold Items Ledger", 14, doc.lastAutoTable.finalY + 10);
+
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 14,
+        head: [['Item Number', 'Ornament Name', 'Metal Type', 'Net Weight', 'Bill Number']],
+        body: todayItemsRows.length > 0 ? todayItemsRows : [['-', 'No items sold today', '-', '-', '-']],
+        theme: 'striped',
+        headStyles: { fillColor: [87, 0, 0], textColor: [254, 214, 91] },
+        styles: { font: 'times', fontSize: 9 }
+      });
       
       doc.save(`SGJ_Today_Report_${todayStr}.pdf`);
     } catch (error) {
