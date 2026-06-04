@@ -27,8 +27,17 @@
   --color-crimson-900: #4d1c1c;
   --color-crimson-950: #2b0c0c;
 
-  --font-serif: "Playfair Display", Georgia, serif;
-  --font-sans: Outfit, Inter, system-ui, sans-serif;
+  --font-serif: "Times New Roman", Times, Baskerville, Georgia, serif;
+  --font-sans: "Times New Roman", Times, Baskerville, Georgia, serif;
+}
+
+html {
+  font-size: 18px !important;
+}
+
+* {
+  font-family: "Times New Roman", Times, Baskerville, Georgia, serif !important;
+  font-weight: bold !important;
 }
 
 body {
